@@ -1,0 +1,163 @@
+---
+title: "Emergency Department's Cases"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: row
+    
+    
+    theme: spacelab
+      
+    
+    
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(plotly)
+library(shiny)
+library(readxl)
+library(reactable)
+ options(scipen = 100)
+```
+
+
+
+Data Visualization
+======================================================
+Column {.sidebar}
+----------------------------------------------------------------------
+
+
+
+Use slider range to search based on number of cases reported in the Emergency Departments.
+
+```{r}
+
+
+sliderInput("count", "[Number of Cases (Range)]", 
+                        min(0),
+                        max(400000),
+                        value = c(5000, 100000), 
+                        step = 10)
+```
+
+
+
+
+
+
+
+
+Acknowledgment: This dataset contains US statewide for every diagnosis reported on the the hospital emergency department in the California Health and Human Services.
+31k+ Diagnosis reported in the form of ICD-10-CM codes.
+
+Source: https://data.world/chhs
+
+
+
+
+
+Row {data-height=650}
+-----------------------------------------------------------------------
+
+### Cases as a Chief Complaint
+
+```{r}
+Ed_data <- read_excel("Ed_data.xlsx")
+ed<- Ed_data%>%
+  rename(Diagnosis = DiagnosisDesc, As_Chief_Complaint= PrimaryDiag)%>%
+  group_by(As_Chief_Complaint)%>%
+  arrange(desc(As_Chief_Complaint))%>% 
+  head(100)
+
+
+renderPlotly({
+      
+    edplot1<-  ggplot(filter(ed,  As_Chief_Complaint>=input$count[1] & As_Chief_Complaint<=input$count[2]))+
+        geom_point(aes(Diagnosis, As_Chief_Complaint, color = Diagnosis, size = As_Chief_Complaint))+
+ 
+     xlab("Diagnosis") + ylab("Count") +
+  ggtitle("Most Common Cases in ER") +
+  theme_bw()+
+  #remove value in x axis for more clarity
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+        fig1 <- ggplotly(edplot1, tooltip = c("x","y"))
+
+      fig1
+      
+    })
+
+
+```
+
+
+Row {data-height=350}
+---------------------------------------------
+### Chief Complaint vs. Secondary Diagnosis
+
+```{r}
+
+Ed_data2 <- read_excel("Ed_data.xlsx")
+ed2<- Ed_data2%>%
+  rename(Diagnosis = DiagnosisDesc, As_Chief_Complaint= PrimaryDiag, Secondary_Diagnosis= SecondDiag)%>%
+  group_by(Diagnosis)%>%
+  arrange(desc(Secondary_Diagnosis))%>%
+  head(100)
+
+
+edplot2 <-plot_ly(ed2, x = ~Diagnosis, y = ~As_Chief_Complaint, type = 'bar', name = 'As Chief Complaint') %>%
+    add_trace(y = ~Secondary_Diagnosis , name = 'Secondary Diagnosis') %>%
+    layout(
+           xaxis= list(showticklabels = FALSE),
+           yaxis = list(title = 'Count'), barmode = 'stack')%>%
+      layout(xaxis = list(categoryorder = "total descending"))
+edplot2
+ 
+
+
+```
+Tabular 
+=================================================
+### Search and filter the Table
+
+```{r}
+
+ed3 <- read_excel("Ed_data.xlsx")
+ed_table<- ed3%>%
+rename(Diagnosis = DiagnosisDesc, As_Chief_Complaint= PrimaryDiag, Secondary_Diagnosis= SecondDiag)%>%
+  group_by(Diagnosis)%>%
+  arrange(desc(Secondary_Diagnosis))
+
+
+htmltools::browsable(
+  tagList(
+    tags$button(
+      tagList(fontawesome::fa("download"), "Download as CSV"),
+      onclick = "Reactable.downloadDataCSV('ICD10-download-table', 'ICD10_ED_Diagnosis.csv')"
+    ),
+
+
+
+
+reactable(ed_table, filterable = TRUE, minRows = 10, elementId = "ICD10-download-table",
+  striped = TRUE,
+  highlight = TRUE,
+  bordered = TRUE,
+  theme = reactableTheme(
+    borderColor = "#dfe2e5",
+    stripedColor = "#f6f8fa",
+    highlightColor = "#f0f5f9",
+    cellPadding = "8px 12px",
+    style = list(fontFamily = "-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif"),
+    searchInputStyle = list(width = "100%")
+  ))
+)
+)
+
+
+
+```
